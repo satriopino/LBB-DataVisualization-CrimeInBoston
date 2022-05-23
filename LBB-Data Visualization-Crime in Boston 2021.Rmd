@@ -1,0 +1,284 @@
+---
+title: "Crime in Boston 2015-2o18"
+author: "Muhammad Satrio Pinoto Negoro"
+date: "10/05/2022"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: readable
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background {.tabset}
+![](crime.png)
+
+
+### About Analyze Boston
+![](analyzeboston.png)
+Analyze Boston is the City of Boston's open data hub to find facts, figures, and maps related to our lives within the city. We are working to make this the default technology platform to support the publication of the City's public information, in the form of data, and to make this information easy to find, access, and use by a broad audience. This platform is managed by the [Citywide Analytics Team](https://www.boston.gov/departments/analytics-team).
+
+### Dataset
+
+Crime incident reports are provided by Boston Police Department (BPD) to document the initial details surrounding an incident to which BPD officers respond. This is a dataset containing records from the new crime incident report system, which includes a reduced set of fields focused on capturing the type of incident as well as when and where it occurred. 
+
+Records begin in June 14, 2015 and continue to September 3, 2018.
+
+The Dataset published on
+[Analyze Boston](https://data.boston.gov/dataset/crime-incident-reports-august-2015-to-date-source-new-system) and [Kaggle](https://www.kaggle.com/datasets/AnalyzeBoston/crimes-in-boston)
+
+## Study Case: "Crime in Boston 2015-2018"
+
+we are data analysts at Analyze Boston whose job is to analyze and dissect information from data more deeply. We want to assist police officers so they can increase security in certain areas of Boston. We got **Crime in Boston 2015-2018** data and want to utilize it to **determine the distribution of criminal cases in Boston** and **what types of crimes often occur in Boston**.
+
+
+## Read Data
+
+Make sure our data placed in the same folder our R project data.
+
+```{r}
+# Read Dataset
+crime <- read.csv("data_input/crime.csv")
+head(crime, 10)
+```
+
+**Checking Dataset**
+
+```{r}
+# Inspect
+str(crime)
+```
+
+**There is some datatype that not appropriate**
+
+
+Delete Column that is not use,
+
+1. SHOOTING
+2. REPORTING_AREA
+3. Lat
+4. Long
+
+The datatype that we should change,
+
+1. OFFENSE_CODE_GROUP -> as.factor
+2. OFFENSE_DESCRIPTION -> as.factor
+3. DISTRICT -> as.factor
+4. OCCURRED_ON_DATE -> datetime
+5. MONTH -> name of month
+6. UCR_PART -> as.factor
+7. STREET -> as.factor
+
+## Data Wrangling
+
+**Import Packages**
+```{r}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(plotly)
+```
+### Delete Column & Change Datatypes
+
+```{r}
+crime_clean <- crime %>% 
+  select(-c("SHOOTING", "REPORTING_AREA", "Lat", "Long")) %>% 
+  mutate(OFFENSE_CODE_GROUP = as.factor(OFFENSE_CODE_GROUP),
+         OFFENSE_DESCRIPTION = as.factor(OFFENSE_DESCRIPTION),
+         DISTRICT = as.factor(DISTRICT),
+         OCCURRED_ON_DATE = ymd_hms(OCCURRED_ON_DATE),
+         UCR_PART = as.factor(UCR_PART),
+         STREET = as.factor(STREET))
+
+crime_clean$MONTH <- sapply(as.character(crime_clean$MONTH), switch,
+         "1" = "January",
+         "2" = "February", 
+         "3" = "March", 
+         "4" = "April", 
+         "5" = "May",
+         "6" = "June", 
+         "7" = "July", 
+         "8" = "August", 
+         "9" = "September",
+         "10" = "October", 
+         "11" = "November",
+         "12" = "December")
+
+
+crime_clean <- crime_clean[!(crime_clean$STREET == ""),]
+crime_clean <- crime_clean[!(crime_clean$DISTRICT == ""),]
+crime_clean$MONTH <- as.factor(crime_clean$MONTH)
+crime_clean$DAY_OF_WEEK <- as.factor(crime_clean$DAY_OF_WEEK)
+head(crime_clean)
+```
+
+Each of column already changed into desired data type
+
+**Checking Missing Value**
+
+```{r}
+anyNA(crime_clean)
+```
+
+```{r}
+colSums(is.na(crime_clean))
+```
+
+Awesome! we haven't Missing Values
+
+Now, The Crime in Boston data is ready to be processed and analyzed
+
+
+## Data Explanation
+
+**We can use `summary()` function to know the data**
+
+```{r}
+summary(crime_clean)
+```
+
+**INSIGHT**
+
+1. The range of existing data starts from June 2015 to September 2018
+2. Most crimes occur in August
+3. Crime occurs the most in WASHINGTON ST
+4. Crime occurs the most on Friday
+
+
+## Exploratory Data
+
+### The most Occur Crime Category 
+
+We need to subset the data for the Crime Group
+
+```{r}
+crime_category <- as.data.frame(sort(table(crime_clean$OFFENSE_CODE_GROUP), decreasing = T))
+names(crime_category)[1] <- paste("Category")
+names(crime_category)[2] <- paste("Frequency")
+
+head(crime_category, 10)
+```
+
+Plotting The Data
+
+```{r}
+ggplot(head(crime_category, 10), aes(x = reorder(Category, Frequency), y = Frequency))+
+  geom_col(fill = "purple") +
+  coord_flip()+
+  labs(x = "",
+       y = "Frequency",
+       title = "The most Occur Crime Category") +
+  theme_minimal()
+```
+
+### The Most Street of Occur Crime
+
+We need to subset the data for the street of Occur Crime
+
+```{r}
+crime_street <- as.data.frame(sort(table(crime_clean$STREET), decreasing = T))
+names(crime_street)[1] <- paste("Street")
+names(crime_street)[2] <- paste("Frequency")
+
+head(crime_street, 10)
+```
+
+Plotting The Data
+
+```{r}
+ggplotly(ggplot(head(crime_street, 10), aes(x = reorder(Street, Frequency), y = Frequency))+
+  geom_col(fill = "Orange") +
+  coord_flip()+
+  labs(x = "",
+       y = "Frequency",
+       title = "The most Street of Occur Crime") +
+  theme_minimal())
+```
+
+
+### The Most Hour of Occur Crime
+
+We need to subset the data for the hour of Occur Crime
+
+```{r}
+crime_hour <- as.data.frame(table(crime_clean$HOUR))
+names(crime_hour)[1] <- paste("Hour")
+names(crime_hour)[2] <- paste("Frequency")
+
+crime_hour
+```
+
+Plotting The Data
+
+```{r}
+ggplotly(ggplot(crime_hour, aes(x = reorder(Hour, Frequency), y = Frequency))+
+  geom_col(fill = "red") +
+  coord_flip()+
+  labs(x = "Hour",
+       y = "Frequency",
+       title = "The Most Hour of Occur Crime") +
+  theme_minimal())
+```
+
+
+### Crime Hour Frequency for Each Day
+
+We need to subset the data Occur Crime
+
+```{r}
+crime_day <- as.data.frame(table(crime_clean$HOUR,
+                                 crime_clean$DAY_OF_WEEK))
+names(crime_day)[1] <- paste("Hour")
+names(crime_day)[2] <- paste("Day")
+names(crime_day)[3] <- paste("Frequency")
+
+head(crime_day, 10)
+```
+
+Plotting The Data
+
+```{r}
+ggplotly(ggplot(data = crime_day, mapping = aes(x = Frequency, y = reorder(Hour, Frequency))) +
+  geom_col(mapping = aes(fill = Day)) + # default position
+  labs(x = "Frequency",
+       y = "Hour",
+       fill = "",
+       title = "Crime Hour with Highest Occur",
+       subtitle = "Colored per Day of Occur Crime") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(legend.position = "top"))
+```
+
+
+
+
+
+## Conclusion
+
+From the analysis and plots that have been shown previously, it can be concluded that,
+
+1. Crime in Boston often occurs between 4pm and 6pm.
+2. Crime in Boston often happens on Fridays.
+3. Crime in Boston is common on Washington St, Blue Hill Ave, and Boylston St.
+4. The categories of crimes that often occur in Boston are 'Motor Vehicle Accident Response', 'Larceny', and 'Medical Assistance' crimes.
+5. Crime in Boston often happens in August.
+
+## Reference
+
+1. [Analyze Boston](https://data.boston.gov/)
+
+## About Me
+
+[Muhammad Satrio Pinoto Negoro](https://www.linkedin.com/in/muhammadsatriopinotonegoro/)
+
+[Source Code](https://github.com/satriopino/LBB-DataVisualization-CrimeInBoston)
+
+
+
+
+
